@@ -6,7 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
-import 'full_screen_image_page.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:google_nav_bar/google_nav_bar.dart';
 
 void main() => runApp(MyApp());
 
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
 class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    Future.delayed(Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 2), () {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => MainScreen()),
@@ -58,27 +59,36 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _children[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Main',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.batch_prediction),
-            label: 'Batch Processing',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
-        ],
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 10.0),
+        child: GNav(
+          gap:8,
+          activeColor: Colors.white,
+          color: Colors.black,
+          //backgroundColor: Colors.purple.shade50,
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+          tabBackgroundColor: Colors.purple.shade100,
+          selectedIndex: _currentIndex,
+          onTabChange: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          tabs: [
+            GButton(
+              icon: Icons.home,
+              text: 'Main',
+            ),
+            GButton(
+              icon: Icons.batch_prediction,
+              text: 'Batch Processing',
+            ),
+            GButton(
+              icon: Icons.history,
+              text: 'History',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -219,14 +229,38 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('ClearShot'),
+          title: Text(
+              'ClearShot',
+              style:GoogleFonts.lobster(
+                fontSize: 28,
+                fontWeight: FontWeight.w300,
+              )
+          )
       ),
       body: SingleChildScrollView(
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              _image == null ? Text('No image selected.') : Image.file(_image!),
+              SizedBox(height: 20),
+              Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.5,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey, width: 2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: PageView(
+                  children: [
+                    _image == null
+                        ? Image.asset('images/default1.jpg', fit: BoxFit.cover)
+                        : Image.file(_image!, fit: BoxFit.cover),
+                    _blendedImage == null
+                        ? Image.asset('images/default2.jpg', fit: BoxFit.cover)
+                        : Image.memory(_blendedImage!, fit: BoxFit.cover),
+                  ],
+                ),
+              ),
               SizedBox(height: 20),
               Slider(
                 value: _sliderValue,
@@ -244,19 +278,32 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                 },
               ),
               SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _pickImage,
-                child: Text('Pick Image from Gallery'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: _pickImage,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    ),
+                    child: Text('Pick'),
+                  ),
+                  SizedBox(width: 20),
+                  ElevatedButton(
+                    onPressed: _uploadImage,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    ),
+                    child: Text('Upload'),
+                  ),
+                ],
               ),
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _uploadImage,
-                child: Text('Upload Image to Backend'),
-              ),
-              SizedBox(height: 20),
-              _blendedImage == null
-                  ? Text('No blended image.')
-                  : Image.memory(_blendedImage!),
             ],
           ),
         ),
@@ -273,37 +320,35 @@ class BatchProcessingScreen extends StatefulWidget {
 class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
   List<XFile>? _imageFiles;
   final picker = ImagePicker();
-  double _sliderValue = 0.5;
+  double _sliderValue = 0.5;  // Ensure you have the slider value here if needed
 
-  // 选择多张图片
+  // 批量选择图片
   Future<void> _pickMultipleImages() async {
     final pickedFiles = await picker.pickMultiImage();
     setState(() {
       if (pickedFiles != null && pickedFiles.length <= 9) {
         _imageFiles = pickedFiles;
       } else if (pickedFiles != null && pickedFiles.length > 9) {
-        _imageFiles = pickedFiles.sublist(0, 9); // 只选择前9张图片的
+        _imageFiles = pickedFiles.sublist(0, 9); // 只选择前九张图片
       } else {
         _imageFiles = null;
       }
     });
   }
 
-  // 上传图片
   Future<void> _uploadImages() async {
     if (_imageFiles == null || _imageFiles!.isEmpty) {
       _showSnackBar('请先选择图片');
       return;
     }
 
-    for (int i = 0; i < _imageFiles!.length; i++) {
-      await _uploadImage(File(_imageFiles![i].path), i);
+    for (var image in _imageFiles!) {
+      await _uploadImage(File(image.path));
     }
     _showSnackBar('所有图片上传成功');
   }
 
-  // 上传单张图片
-  Future<void> _uploadImage(File image, int index) async {
+  Future<void> _uploadImage(File image) async {
     final String defaultUrl = 'http://8.138.119.19:8000/upload/';
     var url = Uri.parse(defaultUrl);
     var request = http.MultipartRequest('POST', url);
@@ -312,7 +357,7 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
 
     request.files.add(await http.MultipartFile.fromPath(
       'file',
-      image.path
+      image.path,
     ));
 
     request.fields['sliderValue'] = _sliderValue.toString();
@@ -322,24 +367,13 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
       if (response.statusCode == 200) {
         http.Response res = await http.Response.fromStream(response);
         Uint8List responseData = res.bodyBytes;
-        String tempPath = await _writeToTempFile(responseData);
-        setState(() {
-          _imageFiles![index] = XFile(tempPath);
-        });
+        // Handle the response as needed, such as blending or saving
       } else {
         _showSnackBar('图片上传失败. 错误代码: ${response.statusCode}');
       }
     } catch (e) {
       _showSnackBar('图片上传过程中发生错误: $e');
     }
-  }
-
-  // 将数据写入临时文件
-  Future<String> _writeToTempFile(Uint8List data) async {
-    final directory = await getTemporaryDirectory();
-    final tempFile = File('${directory.path}/${DateTime.now().millisecondsSinceEpoch}.png');
-    await tempFile.writeAsBytes(data);
-    return tempFile.path;
   }
 
   void _showSnackBar(String message) {
@@ -351,20 +385,12 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
     );
   }
 
-  void _viewImageFullScreen(String imagePath) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => FullScreenImagePage(imagePath: imagePath),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Batch Processing'),
+        // backgroundColor: Colors.blueGrey[900],
       ),
       body: Center(
         child: Column(
@@ -388,14 +414,9 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
                   mainAxisSpacing: 4,
                 ),
                 itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () {
-                      _viewImageFullScreen(_imageFiles![index].path);
-                    },
-                    child: Image.file(
-                      File(_imageFiles![index].path),
-                      fit: BoxFit.cover,
-                    ),
+                  return Image.file(
+                    File(_imageFiles![index].path),
+                    fit: BoxFit.cover,
                   );
                 },
               ),
@@ -602,7 +623,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       return Icon(Icons.broken_image, size: 100);
                     }
                   } else {
-                    return CircularProgressIndicator();
+                    return CircularProgressIndicator()
                   }
                 },
               ),
@@ -649,5 +670,4 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 }
 
-// Creating a new branch is quick and simple.
 
