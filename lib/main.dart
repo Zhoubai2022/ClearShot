@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -100,6 +101,8 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
   final picker = ImagePicker();
   double _sliderValue = 0.5;
   final String defaultUrl = 'http://8.138.119.19:8000/upload/';
+  Timer? _debounce;
+  String? _currentImageDir;
 
   Future<void> _pickImage() async {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -107,7 +110,8 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
     setState(() {
       if (pickedFile != null) {
         _image = File(pickedFile.path);
-        _blendedImage = null; // Clear the blended image when a new image is picked
+        _blendedImage = null; // 选择新图片时清除混合图片
+        _blendedImages.clear(); // 清除之前的混合图片
       }
     });
   }
@@ -135,9 +139,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
       if (response.statusCode == 200) {
         http.Response res = await http.Response.fromStream(response);
         Uint8List responseData = res.bodyBytes;
-        setState(() {
-          _blendedImage = responseData;
-        });
+        _generateBlendedImages(responseData); // 生成混合图片
         await _saveToHistory(responseData);
         if (mounted) {
           _showSnackBar('图片上传和混合成功');
@@ -154,41 +156,50 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
     }
   }
 
-  Future<void> _blendImages(Uint8List responseData) async {
+  List<Uint8List> _blendedImages = [];
+
+  Future<void> _generateBlendedImages(Uint8List responseData) async {
     if (_image == null) {
       return;
     }
+
+    _blendedImages.clear(); // 清除之前的混合图片
 
     try {
       final image1 = img.decodeImage(_image!.readAsBytesSync())!;
       final image2 = img.decodeImage(responseData)!;
 
       final resizedImage2 = img.copyResize(image2, width: image1.width, height: image1.height);
-      final blendedImage = img.Image(image1.width, image1.height);
 
-      for (int y = 0; y < image1.height; y++) {
-        for (int x = 0; x < image1.width; x++) {
-          final pixel1 = image1.getPixel(x, y);
-          final pixel2 = resizedImage2.getPixel(x, y);
-          final r = (img.getRed(pixel1) * _sliderValue + img.getRed(pixel2) * (1 - _sliderValue)).toInt();
-          final g = (img.getGreen(pixel1) * _sliderValue + img.getGreen(pixel2) * (1 - _sliderValue)).toInt();
-          final b = (img.getBlue(pixel1) * _sliderValue + img.getBlue(pixel2) * (1 - _sliderValue)).toInt();
-          final a = (img.getAlpha(pixel1) * _sliderValue + img.getAlpha(pixel2) * (1 - _sliderValue)).toInt();
-          blendedImage.setPixel(x, y, img.getColor(r, g, b, a));
+      for (int i = 0; i <= 10; i++) {
+        final double blendRatio = i / 10.0;
+        final blendedImage = img.Image(image1.width, image1.height);
+
+        for (int y = 0; y < image1.height; y++) {
+          for (int x = 0; x < image1.width; x++) {
+            final pixel1 = image1.getPixel(x, y);
+            final pixel2 = resizedImage2.getPixel(x, y);
+            final r = (img.getRed(pixel1) * blendRatio + img.getRed(pixel2) * (1 - blendRatio)).toInt();
+            final g = (img.getGreen(pixel1) * blendRatio + img.getGreen(pixel2) * (1 - blendRatio)).toInt();
+            final b = (img.getBlue(pixel1) * blendRatio + img.getBlue(pixel2) * (1 - blendRatio)).toInt();
+            final a = (img.getAlpha(pixel1) * blendRatio + img.getAlpha(pixel2) * (1 - blendRatio)).toInt();
+            blendedImage.setPixel(x, y, img.getColor(r, g, b, a));
+          }
         }
+        _blendedImages.add(Uint8List.fromList(img.encodePng(blendedImage)));
       }
 
-      final blendedImageBytes = Uint8List.fromList(img.encodePng(blendedImage));
       setState(() {
-        _blendedImage = blendedImageBytes;
+        _blendedImage = _blendedImages[(10 * _sliderValue).round()]; // 设置初始显示的混合图片
       });
+
     } catch (e) {
       _showSnackBar('图像处理过程中发生错误: $e');
     }
   }
 
   Future<void> _saveToHistory(Uint8List responseData) async {
-    if (_image == null || _blendedImage == null) {
+    if (_image == null) {
       return;
     }
 
@@ -208,9 +219,29 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
       await originalImageFile.writeAsBytes(_image!.readAsBytesSync());
       await blendedImageFile.writeAsBytes(responseData);
 
+      _currentImageDir = imageDir.path;
+
       print('图片已保存到: ${imageDir.path}');
     } catch (e) {
       print('保存图片过程中发生错误: $e');
+    }
+  }
+
+  Future<void> _saveCurrentBlendedImage() async {
+    if (_currentImageDir == null || _blendedImage == null) {
+      _showSnackBar('没有图片可保存');
+      return;
+    }
+
+    try {
+      final blendedImageFile = File('$_currentImageDir/blended_${(_sliderValue * 10).round()}.png');
+      await blendedImageFile.writeAsBytes(_blendedImage!);
+
+      print('混合图片已保存到: ${blendedImageFile.path}');
+      _showSnackBar('混合图片保存成功');
+    } catch (e) {
+      print('保存混合图片过程中发生错误: $e');
+      _showSnackBar('保存混合图片失败');
     }
   }
 
@@ -264,14 +295,12 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                 value: _sliderValue,
                 min: 0,
                 max: 1,
-                divisions: 100,
-                label: _sliderValue.toStringAsFixed(2),
+                divisions: 10,
+                label: _sliderValue.toStringAsFixed(1),
                 onChanged: (double value) {
                   setState(() {
                     _sliderValue = value;
-                    if (_blendedImage != null) {
-                      _blendImages(Uint8List.fromList(_blendedImage!));
-                    }
+                    _blendedImage = _blendedImages[(value * 10).round()]; // 更新显示的混合图片
                   });
                 },
               ),
@@ -287,7 +316,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                       ),
                       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     ),
-                    child: Text('Pick'),
+                    child: Text('选择图片'),
                   ),
                   SizedBox(width: 20),
                   ElevatedButton(
@@ -298,7 +327,18 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                       ),
                       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     ),
-                    child: Text('Upload'),
+                    child: Text('上传图片'),
+                  ),
+                  SizedBox(width: 20),
+                  ElevatedButton(
+                    onPressed: _saveCurrentBlendedImage,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    ),
+                    child: Text('保存图片'),
                   ),
                 ],
               ),
@@ -310,43 +350,24 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
   }
 
   Widget _buildImageView() {
-    if (_blendedImage != null) {
+    if (_blendedImages.isNotEmpty) {
       return GestureDetector(
         onTap: () {
-          //
-          // Save blended image temporarily to display in full screen
-          _saveTempImage(_blendedImage!).then((tempPath) {
-            if (tempPath != null) {
-              _showFullScreenImage(tempPath);
-            }
-          });
+          // 显示全屏图片
         },
         child: Image.memory(_blendedImage!, fit: BoxFit.cover),
       );
     } else if (_image != null) {
       return GestureDetector(
         onTap: () {
-          _saveTempImage(_image!.readAsBytesSync()).then((tempPath) {
-            if (tempPath != null) {
-              _showFullScreenImage(tempPath);
-            }
-          });
+          // 显示全屏图片
         },
         child: Image.file(_image!, fit: BoxFit.cover),
       );
     } else {
       return GestureDetector(
         onTap: () {
-          // Load the default image from assets
-          _loadAssetImage('images/default1.jpg').then((imageBytes) {
-            if (imageBytes != null) {
-              _saveTempImage(imageBytes).then((tempPath) {
-                if (tempPath != null) {
-                  _showFullScreenImage(tempPath);
-                }
-              });
-            }
-          });
+          // 加载默认图片
         },
         child: Image.asset('images/default1.jpg', fit: BoxFit.cover),
       );
@@ -598,14 +619,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: ListTile(
                       contentPadding: EdgeInsets.all(8), // Adjust padding
                       leading: Container(
-                        width: 120,
-                        height: 120, // Set height equal to width to make it square
+                        width: 100,
+                        height: 100, // Set height equal to width to make it square
                         child: Image.memory(
                           snapshot.data!,
                           gaplessPlayback: true,
-                          // width: 120,
-                          // height: 120,
-                          // fit: BoxFit.cover, // Use BoxFit.cover to fill the square
+                          fit: BoxFit.cover, // Use BoxFit.cover to fill the square
                         ),
                       ),
                       title: Text(
@@ -622,8 +641,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: ListTile(
                       contentPadding: EdgeInsets.all(8), // Adjust padding
                       leading: Container(
-                        width: 100,
-                        height: 100, // Set height equal to width to make it square
+                        width: 50,
+                        height: 50, // Set height equal to width to make it square
                         child: Icon(Icons.broken_image, size: 50),
                       ),
                       title: Text(
@@ -636,7 +655,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               } else {
                 return Container(
                   margin: EdgeInsets.symmetric(vertical: 4), // Reduced margin
-                  height: 150, // Adjusted height for each item
+                  height: 100, // Adjusted height for each item
                   child: ListTile(
                     contentPadding: EdgeInsets.all(8), // Adjust padding
                     leading: Container(
@@ -669,13 +688,43 @@ class DetailScreen extends StatefulWidget {
 }
 
 class _DetailScreenState extends State<DetailScreen> {
-  int? _maximizedImageIndex;
+  List<String> _imagePaths = [];
 
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    _loadImages();
+  }
+
+  Future<void> _loadImages() async {
     final originalImageFile = File('${widget.directory.path}/original.png');
     final blendedImageFile = File('${widget.directory.path}/blended.png');
 
+    List<String> imagePaths = [originalImageFile.path, blendedImageFile.path];
+
+    final directoryList = widget.directory.listSync();
+    for (var file in directoryList) {
+      if (file is File && file.path.endsWith('.png') && !imagePaths.contains(file.path)) {
+        imagePaths.add(file.path);
+      }
+    }
+
+    setState(() {
+      _imagePaths = imagePaths;
+    });
+  }
+
+  void _viewImageFullScreen(String imagePath) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FullScreenImagePage(imagePath: imagePath),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Detail'),
@@ -686,80 +735,28 @@ class _DetailScreenState extends State<DetailScreen> {
           },
         ),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            GestureDetector(
+      body: _imagePaths.isEmpty
+          ? Center(child: CircularProgressIndicator())
+          : Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: GridView.builder(
+          itemCount: _imagePaths.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
+          itemBuilder: (context, index) {
+            return GestureDetector(
               onTap: () {
-                setState(() {
-                  _maximizedImageIndex = _maximizedImageIndex == 0 ? null : 0;
-                });
+                _viewImageFullScreen(_imagePaths[index]);
               },
-              child: FutureBuilder<Uint8List>(
-                future: originalImageFile.readAsBytes(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done) {
-                    if (snapshot.hasData) {
-                      return _maximizedImageIndex == 0
-                          ? Expanded(
-                        child: InteractiveViewer(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _maximizedImageIndex = null;
-                              });
-                            },
-                            child: Image.memory(snapshot.data!),
-                          ),
-                        ),
-                      )
-                          : Image.memory(snapshot.data!, width: 200, height: 200, fit: BoxFit.cover);
-                    } else {
-                      return Icon(Icons.broken_image, size: 100);
-                    }
-                  } else {
-                    return CircularProgressIndicator();
-                  }
-                },
+              child: Image.file(
+                File(_imagePaths[index]),
+                fit: BoxFit.cover,
               ),
-            ),
-            SizedBox(height: 20),
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _maximizedImageIndex = _maximizedImageIndex == 1 ? null : 1;
-                });
-              },
-              child: FutureBuilder<Uint8List>(
-                future: blendedImageFile.readAsBytes(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done) {
-                    if (snapshot.hasData) {
-                      return _maximizedImageIndex == 1
-                          ? Expanded(
-                        child: InteractiveViewer(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _maximizedImageIndex = null;
-                              });
-                            },
-                            child: Image.memory(snapshot.data!),
-                          ),
-                        ),
-                      )
-                          : Image.memory(snapshot.data!, width: 200, height: 200, fit: BoxFit.cover);
-                    } else {
-                      return Icon(Icons.broken_image, size: 100);
-                    }
-                  } else {
-                    return CircularProgressIndicator();
-                  }
-                },
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
