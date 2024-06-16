@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -9,35 +10,21 @@ import 'package:image/image.dart' as img;
 import 'full_screen_image_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
+import 'package:flutter/services.dart';
 
-void main() => runApp(MyApp());
+void main() {
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Clear Shot',
-      home: SplashScreen(),
-    );
-  }
-}
-
-class SplashScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => MainScreen()),
-      );
-    });
-
-    return Scaffold(
-      body: Center(
-        child: Image(
-          image: AssetImage('images/logo1.png'), // Corrected the path here
-        ),
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
       ),
+      home: MainScreen(),
     );
   }
 }
@@ -47,7 +34,7 @@ class MainScreen extends StatefulWidget {
   _MainScreenState createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMixin {
   int _currentIndex = 0;
 
   final List<Widget> _children = [
@@ -58,15 +45,19 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Ensure to call super.build
+
     return Scaffold(
-      body: _children[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _children,
+      ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 10.0),
         child: GNav(
-          gap:8,
+          gap: 8,
           activeColor: Colors.white,
           color: Colors.black,
-          //backgroundColor: Colors.purple.shade50,
           padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
           tabBackgroundColor: Colors.purple.shade100,
           selectedIndex: _currentIndex,
@@ -93,6 +84,9 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
+
+  @override
+  bool get wantKeepAlive => true;
 }
 
 class ImagePickerDemo extends StatefulWidget {
@@ -113,6 +107,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
     setState(() {
       if (pickedFile != null) {
         _image = File(pickedFile.path);
+        _blendedImage = null; // Clear the blended image when a new image is picked
       }
     });
   }
@@ -140,7 +135,9 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
       if (response.statusCode == 200) {
         http.Response res = await http.Response.fromStream(response);
         Uint8List responseData = res.bodyBytes;
-        _blendImages(responseData);
+        setState(() {
+          _blendedImage = responseData;
+        });
         await _saveToHistory(responseData);
         if (mounted) {
           _showSnackBar('图片上传和混合成功');
@@ -226,17 +223,26 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
     );
   }
 
+  void _showFullScreenImage(String imagePath) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FullScreenImagePage(imagePath: imagePath),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          title: Text(
-              'ClearShot',
-              style:GoogleFonts.lobster(
-                fontSize: 28,
-                fontWeight: FontWeight.w300,
-              )
-          )
+        title: Text(
+          'ClearShot',
+          style: GoogleFonts.lobster(
+            fontSize: 28,
+            fontWeight: FontWeight.w300,
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         child: Center(
@@ -251,16 +257,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                   border: Border.all(color: Colors.grey, width: 2),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: PageView(
-                  children: [
-                    _image == null
-                        ? Image.asset('images/default1.jpg', fit: BoxFit.cover)
-                        : Image.file(_image!, fit: BoxFit.cover),
-                    _blendedImage == null
-                        ? Image.asset('images/default2.jpg', fit: BoxFit.cover)
-                        : Image.memory(_blendedImage!, fit: BoxFit.cover),
-                  ],
-                ),
+                child: _buildImageView(),
               ),
               SizedBox(height: 20),
               Slider(
@@ -311,6 +308,76 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
       ),
     );
   }
+
+  Widget _buildImageView() {
+    if (_blendedImage != null) {
+      return GestureDetector(
+        onTap: () {
+          //
+          // Save blended image temporarily to display in full screen
+          _saveTempImage(_blendedImage!).then((tempPath) {
+            if (tempPath != null) {
+              _showFullScreenImage(tempPath);
+            }
+          });
+        },
+        child: Image.memory(_blendedImage!, fit: BoxFit.cover),
+      );
+    } else if (_image != null) {
+      return GestureDetector(
+        onTap: () {
+          _saveTempImage(_image!.readAsBytesSync()).then((tempPath) {
+            if (tempPath != null) {
+              _showFullScreenImage(tempPath);
+            }
+          });
+        },
+        child: Image.file(_image!, fit: BoxFit.cover),
+      );
+    } else {
+      return GestureDetector(
+        onTap: () {
+          // Load the default image from assets
+          _loadAssetImage('images/default1.jpg').then((imageBytes) {
+            if (imageBytes != null) {
+              _saveTempImage(imageBytes).then((tempPath) {
+                if (tempPath != null) {
+                  _showFullScreenImage(tempPath);
+                }
+              });
+            }
+          });
+        },
+        child: Image.asset('images/default1.jpg', fit: BoxFit.cover),
+      );
+    }
+  }
+
+  Future<Uint8List?> _loadAssetImage(String assetPath) async {
+    try {
+      final byteData = await rootBundle.load(assetPath);
+      return byteData.buffer.asUint8List();
+    } catch (e) {
+      print('加载资产图片时发生错误: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _saveTempImage(Uint8List imageBytes) async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final imagePath = '${directory.path}/temp_image.png';
+      final imageFile = File(imagePath);
+      await imageFile.writeAsBytes(imageBytes);
+      return imagePath;
+    } catch (e) {
+      print('保存临时图像时发生错误: $e');
+      return null;
+    }
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 }
 
 class BatchProcessingScreen extends StatefulWidget {
@@ -323,34 +390,34 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
   final picker = ImagePicker();
   double _sliderValue = 0.5;
 
-  // 选择多张图片
+  // Pick multiple images
   Future<void> _pickMultipleImages() async {
     final pickedFiles = await picker.pickMultiImage();
     setState(() {
       if (pickedFiles != null && pickedFiles.length <= 9) {
         _imageFiles = pickedFiles;
       } else if (pickedFiles != null && pickedFiles.length > 9) {
-        _imageFiles = pickedFiles.sublist(0, 9); // 只选择前9张图片的
+        _imageFiles = pickedFiles.sublist(0, 9); // Only select the first 9 images
       } else {
         _imageFiles = null;
       }
     });
   }
 
-  // 上传图片
+  // Upload images
   Future<void> _uploadImages() async {
     if (_imageFiles == null || _imageFiles!.isEmpty) {
-      _showSnackBar('请先选择图片');
+      _showSnackBar('Please select images first');
       return;
     }
 
     for (int i = 0; i < _imageFiles!.length; i++) {
       await _uploadImage(File(_imageFiles![i].path), i);
     }
-    _showSnackBar('所有图片上传成功');
+    _showSnackBar('All images uploaded successfully');
   }
 
-  // 上传单张图片
+  // Upload a single image
   Future<void> _uploadImage(File image, int index) async {
     final String defaultUrl = 'http://8.138.119.19:8000/upload/';
     var url = Uri.parse(defaultUrl);
@@ -359,8 +426,8 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
     request.headers['Content-Type'] = 'multipart/form-data';
 
     request.files.add(await http.MultipartFile.fromPath(
-        'file',
-        image.path
+      'file',
+      image.path,
     ));
 
     request.fields['sliderValue'] = _sliderValue.toString();
@@ -375,14 +442,14 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
           _imageFiles![index] = XFile(tempPath);
         });
       } else {
-        _showSnackBar('图片上传失败. 错误代码: ${response.statusCode}');
+        _showSnackBar('Image upload failed. Error code: ${response.statusCode}');
       }
     } catch (e) {
-      _showSnackBar('图片上传过程中发生错误: $e');
+      _showSnackBar('Error during image upload: $e');
     }
   }
 
-  // 将数据写入临时文件
+  // Write data to a temporary file
   Future<String> _writeToTempFile(Uint8List data) async {
     final directory = await getTemporaryDirectory();
     final tempFile = File('${directory.path}/${DateTime.now().millisecondsSinceEpoch}.png');
@@ -420,32 +487,34 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
           children: <Widget>[
             ElevatedButton(
               onPressed: _pickMultipleImages,
-              child: Text('Pick Up Images'),
+              child: Text('Pick Images'),
             ),
             SizedBox(height: 20),
             _imageFiles == null
                 ? Text('No images selected.')
-                : Container(
-              padding: EdgeInsets.all(8),
-              child: GridView.builder(
-                shrinkWrap: true,
-                itemCount: _imageFiles!.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 4,
-                  mainAxisSpacing: 4,
+                : Expanded(
+              child: Container(
+                padding: EdgeInsets.all(8),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  itemCount: _imageFiles!.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  itemBuilder: (context, index) {
+                    return GestureDetector(
+                      onTap: () {
+                        _viewImageFullScreen(_imageFiles![index].path);
+                      },
+                      child: Image.file(
+                        File(_imageFiles![index].path),
+                        fit: BoxFit.cover,
+                      ),
+                    );
+                  },
                 ),
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () {
-                      _viewImageFullScreen(_imageFiles![index].path);
-                    },
-                    child: Image.file(
-                      File(_imageFiles![index].path),
-                      fit: BoxFit.cover,
-                    ),
-                  );
-                },
               ),
             ),
             SizedBox(height: 20),
@@ -696,5 +765,3 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 }
-
-
