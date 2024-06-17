@@ -274,6 +274,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
           'ClearShot',
           style: GoogleFonts.lobster(
             fontSize: 32,
+
             fontWeight: FontWeight.w300,
           ),
         ),
