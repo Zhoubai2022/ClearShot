@@ -252,7 +252,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
     }
 
     try {
-      final blendedImageFile = File('$_currentImageDir/blended_${(_sliderValue * 10).round()}.png');
+      final blendedImageFile = File('$_currentImageDir/blended--${(_sliderValue).round()}.png');
       await blendedImageFile.writeAsBytes(_blendedImage!);
 
       print('混合图片已保存到: ${blendedImageFile.path}');
