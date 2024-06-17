@@ -37,9 +37,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMixin {
   int _currentIndex = 0;
-  File? _originalImage;
-  File? _processedImage;
-
 
   final List<Widget> _children = [
     ImagePickerDemo(),
@@ -273,8 +270,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
         title: Text(
           'ClearShot',
           style: GoogleFonts.lobster(
-            fontSize: 32,
-
+            fontSize: 28,
             fontWeight: FontWeight.w300,
           ),
         ),
@@ -286,15 +282,14 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
             children: <Widget>[
               SizedBox(height: 20),
               Container(
-              width: MediaQuery.of(context).size.width * 0.9,
-              height: MediaQuery.of(context).size.height * 0.5,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey, width: 2),
-                borderRadius: BorderRadius.circular(10),
-              ),
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.5,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey, width: 2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: _buildImageView(),
               ),
-
               SizedBox(height: 20),
               Slider(
                 value: _sliderValue,
@@ -313,47 +308,38 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 100,
-                    child:ElevatedButton(
-                      onPressed: _pickImage,
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  ElevatedButton(
+                    onPressed: _pickImage,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text('Select'),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     ),
+                    child: Text('选择图片'),
                   ),
                   SizedBox(width: 20),
-                  Container(
-                    width: 100,
-                    child:ElevatedButton(
-                      onPressed: _uploadImage,
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  ElevatedButton(
+                    onPressed: _uploadImage,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text('Upload'),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     ),
+                    child: Text('上传图片'),
                   ),
                   SizedBox(width: 20),
-                  Container(
-                    width: 100,
-                    child:ElevatedButton(
-                      onPressed: _saveCurrentBlendedImage,
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  ElevatedButton(
+                    onPressed: _saveCurrentBlendedImage,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text('Save'),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     ),
-                  )
+                    child: Text('保存图片'),
+                  ),
                 ],
               ),
             ],
@@ -532,13 +518,7 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Batch Processing',
-          style: GoogleFonts.lobster(
-            fontSize: 28,
-            fontWeight: FontWeight.w300,
-          ),
-        ),
+        title: Text('Batch Processing'),
       ),
       body: Center(
         child: Column(
@@ -548,69 +528,39 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
               onPressed: _pickMultipleImages,
               child: Text('Pick Images'),
             ),
-            SizedBox(height: 5),
-            Expanded(
+            SizedBox(height: 20),
+            _imageFiles == null
+                ? Text('No images selected.')
+                : Expanded(
               child: Container(
                 padding: EdgeInsets.all(8),
                 child: GridView.builder(
                   shrinkWrap: true,
-                  itemCount: _imageFiles?.length??9,
+                  itemCount: _imageFiles!.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 4,
                     mainAxisSpacing: 4,
                   ),
                   itemBuilder: (context, index) {
-                    if (_imageFiles == null || _imageFiles!.isEmpty) {
-                      return Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.black),
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.blueAccent, // 设置圆形底部的颜色
-                              ),
-                              child: Center(
-                                child: Text(
-                                  (index + 1).toString(), // 显示序号
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.white, // 设置文本颜色为白色
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      );
-                    }
                     return GestureDetector(
                       onTap: () {
                         _viewImageFullScreen(_imageFiles![index].path);
                       },
-                      child: Container(
-                        decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey), // 设置边框颜色
-                      ),
                       child: Image.file(
                         File(_imageFiles![index].path),
                         fit: BoxFit.cover,
-                        ),
                       ),
                     );
                   },
                 ),
               ),
             ),
-            SizedBox(height: 10),
+            SizedBox(height: 20),
             ElevatedButton(
               onPressed: _uploadImages,
-              child: Text('Upload'),
+              child: Text('Upload Images'),
             ),
-            SizedBox(height: 10),
           ],
         ),
       ),
@@ -656,13 +606,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'History',
-          style: GoogleFonts.lobster(
-            fontSize: 28,
-            fontWeight: FontWeight.w300,
-          ),
-        ),
+        title: Text('History'),
       ),
       body: FutureBuilder<List<Directory>>(
         future: _loadHistory(),
@@ -764,8 +708,7 @@ class DetailScreen extends StatefulWidget {
 }
 
 class _DetailScreenState extends State<DetailScreen> {
-  late String originalImagePath;
-  List<String> blendedImagePaths = [];
+  List<String> _imagePaths = [];
 
   @override
   void initState() {
@@ -777,16 +720,18 @@ class _DetailScreenState extends State<DetailScreen> {
     final originalImageFile = File('${widget.directory.path}/original.png');
     final blendedImageFile = File('${widget.directory.path}/blended.png');
 
-    originalImagePath = originalImageFile.path;
+    List<String> imagePaths = [originalImageFile.path, blendedImageFile.path];
 
     final directoryList = widget.directory.listSync();
     for (var file in directoryList) {
-      if (file is File && file.path.endsWith('.png') && file.path != originalImageFile.path) {
-        blendedImagePaths.add(file.path);
+      if (file is File && file.path.endsWith('.png') && !imagePaths.contains(file.path)) {
+        imagePaths.add(file.path);
       }
     }
 
-    setState(() {});
+    setState(() {
+      _imagePaths = imagePaths;
+    });
   }
 
   void _viewImageFullScreen(String imagePath) {
@@ -810,60 +755,28 @@ class _DetailScreenState extends State<DetailScreen> {
           },
         ),
       ),
-      body: blendedImagePaths.isEmpty
+      body: _imagePaths.isEmpty
           ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        child: Column(
-          children: [
-            // 上半部分展示原图
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                width: double.infinity,
-                height: MediaQuery.of(context).size.height * 0.4, // 占据40%的高度
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey, width: 2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: GestureDetector(
-                  onTap: () {
-                    _viewImageFullScreen(originalImagePath);
-                  },
-                  child: Image.file(
-                    File(originalImagePath),
-                    fit: BoxFit.cover,
-                  ),
-                ),
+          : Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: GridView.builder(
+          itemCount: _imagePaths.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
+          itemBuilder: (context, index) {
+            return GestureDetector(
+              onTap: () {
+                _viewImageFullScreen(_imagePaths[index]);
+              },
+              child: Image.file(
+                File(_imagePaths[index]),
+                fit: BoxFit.cover,
               ),
-            ),
-            // 两部分之间的间隔
-            SizedBox(height: 16),
-            // 下半部分展示处理后的图片
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: blendedImagePaths.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, // 六宫格，3列
-                  crossAxisSpacing: 4,
-                  mainAxisSpacing: 4,
-                ),
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () {
-                      _viewImageFullScreen(blendedImagePaths[index]);
-                    },
-                    child: Image.file(
-                      File(blendedImagePaths[index]),
-                      fit: BoxFit.cover,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
