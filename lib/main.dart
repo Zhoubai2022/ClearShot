@@ -744,7 +744,8 @@ class DetailScreen extends StatefulWidget {
 }
 
 class _DetailScreenState extends State<DetailScreen> {
-  List<String> _imagePaths = [];
+  late String originalImagePath;
+  List<String> blendedImagePaths = [];
 
   @override
   void initState() {
@@ -756,18 +757,16 @@ class _DetailScreenState extends State<DetailScreen> {
     final originalImageFile = File('${widget.directory.path}/original.png');
     final blendedImageFile = File('${widget.directory.path}/blended.png');
 
-    List<String> imagePaths = [originalImageFile.path, blendedImageFile.path];
+    originalImagePath = originalImageFile.path;
 
     final directoryList = widget.directory.listSync();
     for (var file in directoryList) {
-      if (file is File && file.path.endsWith('.png') && !imagePaths.contains(file.path)) {
-        imagePaths.add(file.path);
+      if (file is File && file.path.endsWith('.png') && file.path != originalImageFile.path) {
+        blendedImagePaths.add(file.path);
       }
     }
 
-    setState(() {
-      _imagePaths = imagePaths;
-    });
+    setState(() {});
   }
 
   void _viewImageFullScreen(String imagePath) {
@@ -791,28 +790,60 @@ class _DetailScreenState extends State<DetailScreen> {
           },
         ),
       ),
-      body: _imagePaths.isEmpty
+      body: blendedImagePaths.isEmpty
           ? Center(child: CircularProgressIndicator())
-          : Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: GridView.builder(
-          itemCount: _imagePaths.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 4,
-            mainAxisSpacing: 4,
-          ),
-          itemBuilder: (context, index) {
-            return GestureDetector(
-              onTap: () {
-                _viewImageFullScreen(_imagePaths[index]);
-              },
-              child: Image.file(
-                File(_imagePaths[index]),
-                fit: BoxFit.cover,
+          : SingleChildScrollView(
+        child: Column(
+          children: [
+            // 上半部分展示原图
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Container(
+                width: double.infinity,
+                height: MediaQuery.of(context).size.height * 0.4, // 占据40%的高度
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey, width: 2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: GestureDetector(
+                  onTap: () {
+                    _viewImageFullScreen(originalImagePath);
+                  },
+                  child: Image.file(
+                    File(originalImagePath),
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
-            );
-          },
+            ),
+            // 两部分之间的间隔
+            SizedBox(height: 16),
+            // 下半部分展示处理后的图片
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: blendedImagePaths.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3, // 六宫格，3列
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                ),
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () {
+                      _viewImageFullScreen(blendedImagePaths[index]);
+                    },
+                    child: Image.file(
+                      File(blendedImagePaths[index]),
+                      fit: BoxFit.cover,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
