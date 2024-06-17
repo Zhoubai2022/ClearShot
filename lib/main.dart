@@ -458,7 +458,7 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
       if (response.statusCode == 200) {
         http.Response res = await http.Response.fromStream(response);
         Uint8List responseData = res.bodyBytes;
-        String tempPath = await _writeToTempFile(responseData);
+        String tempPath = await _saveToHistory(image, responseData);
         setState(() {
           _imageFiles![index] = XFile(tempPath);
         });
@@ -470,12 +470,30 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
     }
   }
 
-  // Write data to a temporary file
-  Future<String> _writeToTempFile(Uint8List data) async {
-    final directory = await getTemporaryDirectory();
-    final tempFile = File('${directory.path}/${DateTime.now().millisecondsSinceEpoch}.png');
-    await tempFile.writeAsBytes(data);
-    return tempFile.path;
+  // Save original and response images to history
+  Future<String> _saveToHistory(File originalImage, Uint8List responseData) async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final historyDir = Directory('${directory.path}/history');
+      if (!await historyDir.exists()) {
+        await historyDir.create();
+      }
+      final timestamp = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
+      final imageDir = Directory('${historyDir.path}/$timestamp');
+      await imageDir.create();
+
+      final originalImageFile = File('${imageDir.path}/original.png');
+      final blendedImageFile = File('${imageDir.path}/blended.png');
+
+      await originalImageFile.writeAsBytes(await originalImage.readAsBytes());
+      await blendedImageFile.writeAsBytes(responseData);
+
+      // 返回 blendedImageFile 的路径以便显示
+      return blendedImageFile.path;
+    } catch (e) {
+      print('保存图片过程中发生错误: $e');
+      return '';
+    }
   }
 
   void _showSnackBar(String message) {
@@ -556,15 +574,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  List<Directory> _directories = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
-
-  Future<void> _loadHistory() async {
+  Future<List<Directory>> _loadHistory() async {
     try {
       final directory = await getTemporaryDirectory();
       final historyDir = Directory('${directory.path}/history');
@@ -575,14 +585,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
             .map((entity) => entity as Directory)
             .toList()
           ..sort((a, b) => b.path.compareTo(a.path));
-
-        setState(() {
-          _directories = directories;
-        });
+        return directories;
       }
     } catch (e) {
       print('加载历史记录过程中发生错误: $e');
     }
+    return [];
   }
 
   void _openDetailScreen(Directory directory) {
@@ -600,78 +608,90 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         title: Text('History'),
       ),
-      body: _directories.isEmpty
-          ? Center(child: Text('No history available.'))
-          : ListView.builder(
-        itemCount: _directories.length,
-        itemBuilder: (context, index) {
-          final directory = _directories[index];
-          final originalImageFile = File('${directory.path}/original.png');
+      body: FutureBuilder<List<Directory>>(
+        future: _loadHistory(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('加载历史记录过程中发生错误'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(child: Text('No history available.'));
+          } else {
+            final directories = snapshot.data!;
+            return ListView.builder(
+              itemCount: directories.length,
+              itemBuilder: (context, index) {
+                final directory = directories[index];
+                final originalImageFile = File('${directory.path}/original.png');
 
-          return FutureBuilder<Uint8List>(
-            future: originalImageFile.readAsBytes(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.done) {
-                if (snapshot.hasData) {
-                  return Container(
-                    margin: EdgeInsets.symmetric(vertical: 4), // Reduced margin
-                    height: 120, // Adjusted height for each item
-                    child: ListTile(
-                      contentPadding: EdgeInsets.all(8), // Adjust padding
-                      leading: Container(
-                        width: 100,
-                        height: 100, // Set height equal to width to make it square
-                        child: Image.memory(
-                          snapshot.data!,
-                          gaplessPlayback: true,
-                          fit: BoxFit.cover, // Use BoxFit.cover to fill the square
+                return FutureBuilder<Uint8List>(
+                  future: originalImageFile.readAsBytes(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.done) {
+                      if (snapshot.hasData) {
+                        return Container(
+                          margin: EdgeInsets.symmetric(vertical: 4),
+                          height: 120,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.all(8),
+                            leading: Container(
+                              width: 100,
+                              height: 100,
+                              child: Image.memory(
+                                snapshot.data!,
+                                gaplessPlayback: true,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            title: Text(
+                              directory.path.split('/').last,
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                            onTap: () => _openDetailScreen(directory),
+                          ),
+                        );
+                      } else {
+                        return Container(
+                          margin: EdgeInsets.symmetric(vertical: 4),
+                          height: 150,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.all(8),
+                            leading: Container(
+                              width: 50,
+                              height: 50,
+                              child: Icon(Icons.broken_image, size: 50),
+                            ),
+                            title: Text(
+                              'Failed to load image',
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        );
+                      }
+                    } else {
+                      return Container(
+                        margin: EdgeInsets.symmetric(vertical: 4),
+                        height: 100,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.all(8),
+                          leading: Container(
+                            width: 100,
+                            height: 100,
+                            child: CircularProgressIndicator(),
+                          ),
+                          title: Text(
+                            'Loading...',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
-                      title: Text(
-                        directory.path.split('/').last,
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), // Larger font size
-                      ),
-                      onTap: () => _openDetailScreen(directory),
-                    ),
-                  );
-                } else {
-                  return Container(
-                    margin: EdgeInsets.symmetric(vertical: 4), // Reduced margin
-                    height: 150, // Adjusted height for each item
-                    child: ListTile(
-                      contentPadding: EdgeInsets.all(8), // Adjust padding
-                      leading: Container(
-                        width: 50,
-                        height: 50, // Set height equal to width to make it square
-                        child: Icon(Icons.broken_image, size: 50),
-                      ),
-                      title: Text(
-                        'Failed to load image',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), // Larger font size
-                      ),
-                    ),
-                  );
-                }
-              } else {
-                return Container(
-                  margin: EdgeInsets.symmetric(vertical: 4), // Reduced margin
-                  height: 100, // Adjusted height for each item
-                  child: ListTile(
-                    contentPadding: EdgeInsets.all(8), // Adjust padding
-                    leading: Container(
-                      width: 100,
-                      height: 100, // Set height equal to width to make it square
-                      child: CircularProgressIndicator(),
-                    ),
-                    title: Text(
-                      'Loading...',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), // Larger font size
-                    ),
-                  ),
+                      );
+                    }
+                  },
                 );
-              }
-            },
-          );
+              },
+            );
+          }
         },
       ),
     );
