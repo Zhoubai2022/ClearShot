@@ -136,6 +136,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
   final String defaultUrl = 'http://8.138.119.19:8000/upload/';
   Timer? _debounce;
   String? _currentImageDir;
+  String? _blendedImagePath;
 
   Future<void> _pickImage() async {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -226,6 +227,9 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
         _blendedImage = _blendedImages[(10 * _sliderValue).round()]; // 设置初始显示的混合图片
       });
 
+      // 保存初始混合图像的路径
+      _blendedImagePath = await _saveTempImage(_blendedImages[(10 * _sliderValue).round()]);
+
     } catch (e) {
       _showSnackBar('图像处理过程中发生错误: $e');
     }
@@ -287,7 +291,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
     );
   }
 
-  void _showFullScreenImage(String imagePath) {
+  void _viewImageFullScreen(String imagePath) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -323,7 +327,6 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
               ),
                 child: _buildImageView(),
               ),
-
               SizedBox(height: 20),
               Slider(
                 value: _sliderValue,
@@ -331,11 +334,13 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                 max: 1,
                 divisions: 10,
                 label: _sliderValue.toStringAsFixed(1),
-                onChanged: (double value) {
+                onChanged: (double value) async {
                   setState(() {
                     _sliderValue = value;
                     _blendedImage = _blendedImages[(value * 10).round()]; // 更新显示的混合图片
                   });
+                  // 保存当前显示混合图像的路径
+                  _blendedImagePath = await _saveTempImage(_blendedImages[(value * 10).round()]);
                 },
               ),
               SizedBox(height: 20),
@@ -344,7 +349,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                 children: [
                   Container(
                     width: 100,
-                    child:ElevatedButton(
+                    child: ElevatedButton(
                       onPressed: _pickImage,
                       style: ElevatedButton.styleFrom(
                         shape: RoundedRectangleBorder(
@@ -358,7 +363,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                   SizedBox(width: 20),
                   Container(
                     width: 100,
-                    child:ElevatedButton(
+                    child: ElevatedButton(
                       onPressed: _uploadImage,
                       style: ElevatedButton.styleFrom(
                         shape: RoundedRectangleBorder(
@@ -372,7 +377,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                   SizedBox(width: 20),
                   Container(
                     width: 100,
-                    child:ElevatedButton(
+                    child: ElevatedButton(
                       onPressed: _saveCurrentBlendedImage,
                       style: ElevatedButton.styleFrom(
                         shape: RoundedRectangleBorder(
@@ -382,7 +387,7 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
                       ),
                       child: Text('Save'),
                     ),
-                  )
+                  ),
                 ],
               ),
             ],
@@ -396,21 +401,29 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
     if (_blendedImages.isNotEmpty) {
       return GestureDetector(
         onTap: () {
-          // 显示全屏图片
+          if (_blendedImagePath != null) {
+            _viewImageFullScreen(_blendedImagePath!);
+          }
         },
         child: Image.memory(_blendedImage!, fit: BoxFit.cover),
       );
     } else if (_image != null) {
       return GestureDetector(
         onTap: () {
-          // 显示全屏图片
+          _viewImageFullScreen(_image!.path);
         },
         child: Image.file(_image!, fit: BoxFit.cover),
       );
     } else {
       return GestureDetector(
-        onTap: () {
-          // 加载默认图片
+        onTap: () async {
+          Uint8List? defaultImage = await _loadAssetImage('images/default1.jpg');
+          if (defaultImage != null) {
+            String? imagePath = await _saveTempImage(defaultImage);
+            if (imagePath != null) {
+              _viewImageFullScreen(imagePath);
+            }
+          }
         },
         child: Image.asset('images/default1.jpg', fit: BoxFit.cover),
       );
