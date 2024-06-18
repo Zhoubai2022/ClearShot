@@ -37,8 +37,23 @@ class SplashScreen extends StatelessWidget {
 
     return Scaffold(
       body: Center(
-        child: Image(
-          image: AssetImage('images/logo1.png'), // Corrected the path here
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image(
+              image: AssetImage('images/logo.png'),
+              width: 250,
+              height: 250,
+            ),
+            SizedBox(height: 20,),
+            Text(
+              'ClearShot',
+              style: GoogleFonts.lobster(
+              fontSize: 50,
+              fontWeight: FontWeight.w300,
+              ),
+            ),
+          ],// Corrected the path here
         ),
       ),
     );
@@ -289,7 +304,6 @@ class _ImagePickerDemoState extends State<ImagePickerDemo> {
           'ClearShot',
           style: GoogleFonts.lobster(
             fontSize: 32,
-
             fontWeight: FontWeight.w300,
           ),
         ),
@@ -444,14 +458,36 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
   Future<void> _pickMultipleImages() async {
     final pickedFiles = await picker.pickMultiImage();
     setState(() {
-      if (pickedFiles != null && pickedFiles.length <= 9) {
-        _imageFiles = pickedFiles;
-      } else if (pickedFiles != null && pickedFiles.length > 9) {
-        _imageFiles = pickedFiles.sublist(0, 9); // Only select the first 9 images
-      } else {
-        _imageFiles = null;
+      if (pickedFiles != null && pickedFiles.isNotEmpty) {
+        if (pickedFiles.length <= 9) {
+          _imageFiles = pickedFiles;
+        } else {
+          _showMaxImagesDialog();
+         // Only select the first 9 images
+        }
       }
+      // If pickedFiles is null or empty, do nothing to retain the current grid
     });
+  }
+
+  void _showMaxImagesDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("The photo list is full"),
+          content: Text("You cannot select more than 9 images."),
+          actions: [
+            TextButton(
+              child: Text("OK"),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Upload images
