@@ -46,6 +46,23 @@ class _FullScreenImagePageState extends State<FullScreenImagePage> {
 
     print(response.body);
     print(response.statusCode);
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Thank you for your feedback!'),
+          content: Text('The model will be improved based on this.'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
