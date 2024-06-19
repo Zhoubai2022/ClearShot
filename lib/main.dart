@@ -93,7 +93,7 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
           activeColor: Colors.white,
           color: Colors.black,
           padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-          tabBackgroundColor: Colors.purple.shade100,
+          tabBackgroundColor: Colors.lightBlueAccent.shade100,
           selectedIndex: _currentIndex,
           onTabChange: (index) {
             setState(() {
@@ -590,11 +590,7 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            ElevatedButton(
-              onPressed: _pickMultipleImages,
-              child: Text('Pick Images'),
-            ),
-            SizedBox(height: 5),
+
             Expanded(
               child: Container(
                 padding: EdgeInsets.all(8),
@@ -652,6 +648,11 @@ class _BatchProcessingScreenState extends State<BatchProcessingScreen> {
               ),
             ),
             SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: _pickMultipleImages,
+              child: Text('Pick Images'),
+            ),
+            SizedBox(height: 5),
             ElevatedButton(
               onPressed: _uploadImages,
               child: Text('Upload'),

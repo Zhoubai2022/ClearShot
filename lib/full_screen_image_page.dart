@@ -142,7 +142,7 @@ class _FullScreenImagePageState extends State<FullScreenImagePage> {
                   });
                 }
               },
-              child: Icon(isEditing ? Icons.check : Icons.edit),
+              child: Icon(isEditing ? Icons.check : Icons.heart_broken),
               mini: true,
               backgroundColor: Colors.white.withOpacity(0.7),
             ),
